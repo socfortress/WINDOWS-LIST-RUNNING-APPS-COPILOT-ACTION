@@ -1,7 +1,7 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
   [int]$MaxWaitSeconds = 300,
-  [string]$LogPath = "$env:TEMP\Generic-Automation.log",
+  [string]$LogPath = "$env:TEMP\ListRunningApps-script.log",
   [string]$ARLog = 'C:\Program Files (x86)\ossec-agent\active-response\active-responses.log'
 )
 
@@ -11,10 +11,7 @@ $LogMaxKB = 100
 $LogKeep = 5
 
 function Write-Log {
-  param(
-    [string]$Message,
-    [ValidateSet('INFO','WARN','ERROR','DEBUG')]$Level = 'INFO'
-  )
+  param([string]$Message,[ValidateSet('INFO','WARN','ERROR','DEBUG')]$Level='INFO')
   $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
   $line = "[$ts][$Level] $Message"
   switch ($Level) {
@@ -41,28 +38,55 @@ function Rotate-Log {
 
 Rotate-Log
 $runStart = Get-Date
-Write-Log "=== SCRIPT START ==="
+Write-Log "=== SCRIPT START : List Running Applications ==="
 
 try {
-  ### =============================================
-  ### >> PLACE YOUR ACTION LOGIC HERE <<
-  ### =============================================
+  Write-Log "Querying running processes..." 'INFO'
 
+  $processes = Get-CimInstance Win32_Process |
+    Where-Object { $_.ExecutablePath -and $_.Name -ne "" } |
+    Select-Object Name, ProcessId, ExecutablePath |
+    Sort-Object Name
 
-  $result | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Append -Encoding ascii -Width 2000
+  if (-not $processes) {
+    Write-Log "No user-level applications found running." 'WARN'
+  }
+  else {
+    Write-Log "Found $($processes.Count) running applications." 'INFO'
+    foreach ($proc in $processes) {
+      Write-Log "[$($proc.ProcessId)] $($proc.Name) => $($proc.ExecutablePath)" 'DEBUG'
+    }
+  }
+
+  $apps = $processes | ForEach-Object {
+    [PSCustomObject]@{
+      name = $_.Name
+      pid  = $_.ProcessId
+      path = $_.ExecutablePath
+    }
+  }
+
+  $logObj = [pscustomobject]@{
+    timestamp = (Get-Date).ToString('o')
+    host      = $HostName
+    action    = "list_running_apps"
+    count     = $apps.Count
+    apps      = $apps
+  }
+
+  $logObj | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Append -Encoding ascii -Width 2000
   Write-Log "JSON appended to $ARLog" 'INFO'
-
 }
 catch {
   Write-Log $_.Exception.Message 'ERROR'
-  $errorLog = [pscustomobject]@{
+  $logObj = [pscustomobject]@{
     timestamp = (Get-Date).ToString('o')
-    host = $HostName
-    action = "generic_error"
-    status = "error"
-    error = $_.Exception.Message
+    host      = $HostName
+    action    = "list_running_apps"
+    status    = "error"
+    error     = $_.Exception.Message
   }
-  $errorLog | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Append -Encoding ascii -Width 2000
+  $logObj | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Append -Encoding ascii -Width 2000
 }
 finally {
   $dur = [int]((Get-Date) - $runStart).TotalSeconds
