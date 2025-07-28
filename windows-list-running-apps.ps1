@@ -64,6 +64,7 @@ try {
     action="list_running_apps"
     count=$apps.Count
     apps=$apps
+    copilot_soar = $true
   }
   $logObj | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Append -Encoding ascii -Width 2000
   Write-Log "JSON appended to $ARLog" 'INFO'
@@ -75,6 +76,7 @@ try {
     action="list_running_apps"
     status="error"
     error=$_.Exception.Message
+    copilot_soar = $true
   }
   $logObj | ConvertTo-Json -Compress | Out-File -FilePath $ARLog -Append -Encoding ascii -Width 2000
 } finally {
