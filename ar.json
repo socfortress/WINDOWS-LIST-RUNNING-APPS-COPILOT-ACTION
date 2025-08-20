@@ -1,0 +1,19 @@
+{
+  "active_response_name": "WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE",
+  "description": "The windows-list-running-apps.ps1 file is the foundation for PowerShell active response scripts that enumerate running user-level applications. It provides a robust framework with built-in logging, error handling, and standardized output formatting suitable for integration with security orchestration platforms, SIEM systems, and incident response workflows.",
+  "technology": "Windows",
+  "icon": "windows",
+  "script_parameters": [
+    {
+      "name": "RunID",
+      "type": "string",
+      "required": false,
+      "description": "Unique run identifier for log correlation",
+      "default": null
+    }
+  ],
+  "repo_url": "https://github.com/socfortress/WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE",
+  "script_name": "List-Running-Apps.ps1",
+  "version": "1.0.0",
+  "last_updated": "2025-08-20T00:00:00Z"
+}
