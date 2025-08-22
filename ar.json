@@ -1,5 +1,5 @@
 {
-  "active_response_name": "WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE",
+  "copilot_action_name": "WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE",
   "description": "Lists running applications (process name, PID, path) and writes NDJSON summary + per-process records to the Active Response log using atomic overwrite with .new fallback.",
   "technology": "Windows",
   "icon": "windows",
