@@ -1,19 +1,33 @@
 {
   "active_response_name": "WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE",
-  "description": "The windows-list-running-apps.ps1 file is the foundation for PowerShell active response scripts that enumerate running user-level applications. It provides a robust framework with built-in logging, error handling, and standardized output formatting suitable for integration with security orchestration platforms, SIEM systems, and incident response workflows.",
+  "description": "Lists running applications (process name, PID, path) and writes NDJSON summary + per-process records to the Active Response log using atomic overwrite with .new fallback.",
   "technology": "Windows",
   "icon": "windows",
   "script_parameters": [
     {
-      "name": "RunID",
+      "name": "MaxWaitSeconds",
+      "type": "integer",
+      "required": false,
+      "description": "Maximum time the script should allow for operations before considering a timeout.",
+      "default": 300
+    },
+    {
+      "name": "LogPath",
       "type": "string",
       "required": false,
-      "description": "Unique run identifier for log correlation",
-      "default": null
+      "description": "Path to the rotating human-readable script log.",
+      "default": "%TEMP%/ListRunningApps-script.log"
+    },
+    {
+      "name": "ARLog",
+      "type": "string",
+      "required": false,
+      "description": "Active Response NDJSON output path (atomic overwrite; falls back to .new if locked).",
+      "default": "C:\\Program Files (x86)\\ossec-agent\\active-response\\active-responses.log"
     }
   ],
-  "repo_url": "https://github.com/socfortress/WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE",
-  "script_name": "List-Running-Apps.ps1",
+  "repo_url": "https://github.com/socfortress/WINDOWS-LIST-RUNNING-APPS-ACTIVERESPONSE/blob/main/windows-list-running-apps.ps1",
+  "script_name": "windows-list-running-apps.ps1",
   "version": "1.0.0",
-  "last_updated": "2025-08-20T00:00:00Z"
+  "last_updated": "2025-08-22T00:00:00Z"
 }
