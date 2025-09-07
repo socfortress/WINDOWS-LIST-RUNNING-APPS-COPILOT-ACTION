@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$ScriptName = "List-Running-Applications"
+$ScriptName = "list_running_applications"
 $HostName   = $env:COMPUTERNAME
 $LogMaxKB   = 100
 $LogKeep    = 5
@@ -15,14 +15,14 @@ $RunStart   = Get-Date
 
 function Write-Log {
   param([string]$Message,[ValidateSet('INFO','WARN','ERROR','DEBUG')]$Level='INFO')
-  $ts = Get-Date -Format "yyyy-MM-dd HH:mm:sszzz"
+  $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
   $line = "[$ts][$Level] $Message"
   switch ($Level) {
     'ERROR' { Write-Host $line -ForegroundColor Red }
     'WARN'  { Write-Host $line -ForegroundColor Yellow }
     default { Write-Host $line }
   }
-  try { Add-Content -Path $LogPath -Value $line -ErrorAction SilentlyContinue } catch {}
+  try { Add-Content -Path $LogPath -Value $line -Encoding utf8 -ErrorAction SilentlyContinue } catch {}
 }
 
 function Rotate-Log {
@@ -38,10 +38,11 @@ function Rotate-Log {
     }
   }
 }
+
 function New-ArJsonLine {
   param([hashtable]$Fields)
   $std = [ordered]@{
-    timestamp      = (Get-Date).ToUniversalTime().ToString("o")
+    timestamp      = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     host           = $HostName
     action         = $ScriptName
     copilot_action = $true
@@ -50,31 +51,22 @@ function New-ArJsonLine {
 }
 
 function Commit-NDJSON {
-  param([string[]]$Lines)
+  param([string[]]$Lines,[string]$Path=$ARLog)
   if (-not $Lines -or $Lines.Count -eq 0) {
-    $Lines = @( New-ArJsonLine @{ status = "no_results"; message = "no entries" } )
+    $Lines = @( New-ArJsonLine @{ item = 'summary'; status = 'no_results'; description = 'no entries' } )
   }
-  $tmp = [System.IO.Path]::GetTempFileName()
+  $tmp = [System.IO.Path]::Combine($env:TEMP, "arlog_{0}.tmp" -f ([guid]::NewGuid().ToString('N')))
   try {
-    [System.IO.File]::WriteAllLines($tmp, $Lines, [System.Text.Encoding]::ASCII)
+    $payload = ($Lines -join [Environment]::NewLine) + [Environment]::NewLine
+    [System.IO.File]::WriteAllText($tmp, $payload, [System.Text.Encoding]::ASCII)
     try {
-      Move-Item -Force -Path $tmp -Destination $ARLog
+      Move-Item -Force -Path $tmp -Destination $Path
     } catch {
-      Write-Log "Primary move to $ARLog failed; trying .new" "WARN"
-      Move-Item -Force -Path $tmp -Destination "$ARLog.new"
+      Write-Log "Primary move to $Path failed; writing to .new" "WARN"
+      Move-Item -Force -Path $tmp -Destination ($Path + '.new')
     }
   } finally {
     if (Test-Path $tmp) { Remove-Item -Force $tmp -ErrorAction SilentlyContinue }
-  }
-
-  foreach ($p in @($ARLog, "$ARLog.new")) {
-    if (Test-Path $p) {
-      $fi   = Get-Item $p
-      $head = Get-Content -Path $p -TotalCount 1 -ErrorAction SilentlyContinue
-      if (-not $head) { $head = "<empty>" }
-      $verify = "VERIFY: path={0} size={1}B first_line={2}" -f $fi.FullName, $fi.Length, $head
-      Write-Log $verify "INFO"
-    }
   }
 }
 
@@ -82,39 +74,57 @@ Rotate-Log
 Write-Log "=== SCRIPT START : $ScriptName (host=$HostName) ===" "INFO"
 
 try {
-  Write-Log "Querying running processes (with ExecutablePath)..." "INFO"
+  Write-Log "Querying running processes (CIM Win32_Process, with ExecutablePath)..." "INFO"
 
-  $procs = Get-CimInstance Win32_Process |
+  $queryStart = Get-Date
+  $procs = Get-CimInstance Win32_Process -ErrorAction Stop |
            Where-Object { $_.ExecutablePath -and $_.Name } |
            Select-Object Name, ProcessId, ExecutablePath |
            Sort-Object Name
+  $queryMs = [math]::Round(((Get-Date) - $queryStart).TotalMilliseconds)
+
+  $count = ($procs | Measure-Object).Count
 
   $lines = @()
+
   $lines += New-ArJsonLine @{
-    item  = "summary"
-    count = ($procs | Measure-Object).Count
+    item         = 'verify_source'
+    description  = 'Enumerated processes via CIM Win32_Process'
+    provider     = 'WMI/CIM'
+    class        = 'Win32_Process'
+    filter       = 'ExecutablePath IS NOT NULL'
+    duration_ms  = $queryMs
   }
 
-  # One NDJSON line per process
+  $summary = New-ArJsonLine @{
+    item        = 'summary'
+    description = 'Run summary and counts'
+    process_count = $count
+    duration_s  = [math]::Round(((Get-Date) - $RunStart).TotalSeconds, 1)
+  }
+  $lines = ,$summary + $lines
+
   foreach ($p in $procs) {
     $lines += New-ArJsonLine @{
-      item = "process"
+      item = 'process'
       name = "$($p.Name)"
       pid  = [int]$p.ProcessId
       path = "$($p.ExecutablePath)"
     }
   }
 
-  Commit-NDJSON -Lines $lines
+  Commit-NDJSON -Lines $lines -Path $ARLog
+  Write-Log ("Wrote {0} NDJSON line(s) to {1}" -f $lines.Count, $ARLog) 'INFO'
 }
 catch {
   Write-Log $_.Exception.Message 'ERROR'
   Commit-NDJSON -Lines @(
     New-ArJsonLine @{
-      status = 'error'
-      error  = "$($_.Exception.Message)"
+      item        = 'error'
+      description = 'Unhandled exception'
+      error       = "$($_.Exception.Message)"
     }
-  )
+  ) -Path $ARLog
 }
 finally {
   $dur = [int](New-TimeSpan -Start $RunStart -End (Get-Date)).TotalSeconds
