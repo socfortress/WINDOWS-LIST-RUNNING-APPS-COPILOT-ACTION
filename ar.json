@@ -3,7 +3,7 @@
   "description": "Enumerates running processes via CIM (Win32_Process) and emits NDJSON records: a verification entry, a summary with counts and duration, and one line per process including name, PID, and executable path.",
   "technology": "Windows",
   "icon": "windows",
-  "repo_url": "https://raw.githubusercontent.com/socfortress/WINDOWS-LIST-RUNNING-APPLICATIONS-COPILOT-ACTION/refs/heads/main/List-Running-Applications.ps1",
+  "repo_url": "https://raw.githubusercontent.com/socfortress/WINDOWS-LIST-RUNNING-APPS-COPILOT-ACTION/refs/heads/main/windows-list-running-apps.ps1",
   "script_name": "List-Running-Applications.ps1",
   "version": "1.0.0",
   "last_updated": "2025-09-09T00:00:00Z"
